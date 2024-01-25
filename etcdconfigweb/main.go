@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"gitli.stratum0.org/ffbs/etcd-tools/etcdhelper"
+	"gitli.stratum0.org/ffbs/etcd-tools/signify"
 
 	"go.etcd.io/etcd/client/v3"
 )
@@ -254,7 +255,7 @@ func main() {
 
 	metrics := NewMetrics(handler)
 
-	http.Handle("/config", &ConfigHandler{tracker: metrics, signer: &SignifyCmdline{
+	http.Handle("/config", &ConfigHandler{tracker: metrics, signer: &signify.Cmdline{
 		PrivateKey: "/etc/ffbs/node-config.sec",
 	}, etcdHandler: handler})
 	http.Handle("/etcd_status", metrics)

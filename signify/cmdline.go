@@ -1,4 +1,4 @@
-package main
+package signify
 
 import (
 	"bytes"
@@ -8,11 +8,11 @@ import (
 
 var SIGNIFY_COMMAND string = "signify-openbsd"
 
-type SignifyCmdline struct {
+type Cmdline struct {
 	PrivateKey string
 }
 
-func (sc SignifyCmdline) Sign(content []byte) (string, error) {
+func (sc Cmdline) Sign(content []byte) (string, error) {
 	var signature bytes.Buffer
 	cmd := exec.Command(SIGNIFY_COMMAND, "-S", "-m-", "-s", sc.PrivateKey, "-x-")
 	cmd.Stdout = &signature
