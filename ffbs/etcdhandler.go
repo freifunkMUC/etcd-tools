@@ -24,9 +24,19 @@ func (eh EtcdHandler) fillNodeInfo(pubkey string, info *NodeInfo) error {
 	return etcdhelper.UnmarshalKVResponse(resp, info, prefix)
 }
 
-func (eh EtcdHandler) GetNodeInfo(pubkey string) (*NodeInfo, error) {
+func (eh EtcdHandler) GetOnlyNodeInfo(pubkey string) (*NodeInfo, error) {
 	info := &NodeInfo{}
-	if err := eh.fillNodeInfo(DEFAULT_NODE_KEY, info); err != nil {
+	err := eh.fillNodeInfo(pubkey, info)
+	return info, err
+}
+
+func (eh EtcdHandler) GetDefaultNodeInfo() (*NodeInfo, error) {
+	return eh.GetOnlyNodeInfo(DEFAULT_NODE_KEY)
+}
+
+func (eh EtcdHandler) GetNodeInfo(pubkey string) (*NodeInfo, error) {
+	info, err := eh.GetDefaultNodeInfo()
+	if err != nil {
 		return nil, err
 	}
 	if err := eh.fillNodeInfo(pubkey, info); err != nil {
@@ -35,7 +45,7 @@ func (eh EtcdHandler) GetNodeInfo(pubkey string) (*NodeInfo, error) {
 	return info, nil
 }
 
-var ID_KEY = regexp.MustCompile(`/config/[A-Za-z0-9=_-]+/id`)
+var ID_KEY = regexp.MustCompile(`/config/([A-Za-z0-9=_-]+)/id`)
 
 func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
 	resp, err := eh.KV.Get(ctx, "/config/", clientv3.WithKeysOnly(), clientv3.WithPrefix())
@@ -49,4 +59,22 @@ func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
 		}
 	}
 	return count, nil
+}
+
+func (eh EtcdHandler) PubkeyIterator(ctx context.Context) (<-chan string, error) {
+	resp, err := eh.KV.Get(ctx, "/config/", clientv3.WithKeysOnly(), clientv3.WithPrefix())
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan string)
+	go func() {
+		defer close(ch)
+		for _, kv := range resp.Kvs {
+			if match := ID_KEY.FindSubmatch(kv.Key); match != nil {
+				ch <- string(match[1])
+			}
+		}
+	}()
+	return ch, nil
 }
