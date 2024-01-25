@@ -1,21 +1,21 @@
 package main
 
 import (
-	"os"
-	"encoding/json"
-	"strings"
-	"crypto/x509"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
 	"io"
+	"os"
+	"strings"
 
 	"go.etcd.io/etcd/client/v3"
 )
 
 type EtcdConfigFile struct {
 	Endpoints string // comma separated
-	CACert string
-	Cert string
-	Key string
+	CACert    string
+	Cert      string
+	Key       string
 }
 
 func CreateEtcdConnection() (*clientv3.Client, error) {
@@ -50,8 +50,8 @@ func CreateEtcdConnection() (*clientv3.Client, error) {
 	return clientv3.New(clientv3.Config{
 		Endpoints: strings.Split(cfg.Endpoints, ","),
 		TLS: &tls.Config{
-			Certificates: []tls.Certificate{ cert },
-			RootCAs: rootCAs,
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      rootCAs,
 		},
 	})
 }

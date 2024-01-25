@@ -1,17 +1,16 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
-	"log"
 	"context"
+	"encoding/json"
+	"log"
+	"net/http"
 )
 
 type RequestTracker interface {
 	RequestSuccessful()
 	RequestFailed()
 }
-
 
 type MetricEvent uint
 
@@ -25,16 +24,16 @@ type NodeCounter interface {
 }
 
 type Metrics struct {
-	RequestsFailed uint64
+	RequestsFailed     uint64
 	RequestsSuccessful uint64
 
-	events chan MetricEvent
+	events  chan MetricEvent
 	counter NodeCounter
 }
 
 func NewMetrics(counter NodeCounter) *Metrics {
-	metrics := &Metrics {
-		events: make(chan MetricEvent, 64),
+	metrics := &Metrics{
+		events:  make(chan MetricEvent, 64),
 		counter: counter,
 	}
 	go metrics.EventLoop()
@@ -52,21 +51,21 @@ func (m *Metrics) RequestFailed() {
 
 func (m *Metrics) EventLoop() {
 	for event := range m.events {
-		switch(event) {
-			case REQUEST_SUCCESSFUL:
-				m.RequestsSuccessful += 1
-			case REQUEST_FAILED:
-				m.RequestsFailed += 1
-			default:
-				panic("Undefined/unhandled event")
+		switch event {
+		case REQUEST_SUCCESSFUL:
+			m.RequestsSuccessful += 1
+		case REQUEST_FAILED:
+			m.RequestsFailed += 1
+		default:
+			panic("Undefined/unhandled event")
 		}
 	}
 }
 
 type MetricResponse struct {
-	RequestsFailed uint64 `json:"requestsFailed"`
+	RequestsFailed     uint64 `json:"requestsFailed"`
 	RequestsSuccessful uint64 `json:"requestsSuccessful"`
-	NodesConfigured uint64 `json:"nodesConfigured"`
+	NodesConfigured    uint64 `json:"nodesConfigured"`
 }
 
 func (m *Metrics) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -80,9 +79,9 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(&MetricResponse{
-		RequestsFailed: m.RequestsFailed,
+		RequestsFailed:     m.RequestsFailed,
 		RequestsSuccessful: m.RequestsSuccessful,
-		NodesConfigured: count,
+		NodesConfigured:    count,
 	}); err != nil {
 		log.Println("Error while serving status request", err)
 	}

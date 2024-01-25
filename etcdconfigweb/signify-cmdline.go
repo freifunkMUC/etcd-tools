@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"os/exec"
 	"strings"
-	"bytes"
 )
 
 var SIGNIFY_COMMAND string = "signify-openbsd"

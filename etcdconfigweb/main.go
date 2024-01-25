@@ -1,30 +1,33 @@
 package main
 
 import (
-	"net/http"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
-	"net/url"
 	//"bytes"
+	"context"
 	"encoding/base64"
-	"errors"
-	"strconv"
 	"encoding/json"
+	"errors"
 	"log"
 	"regexp"
-	"context"
+	"strconv"
 
 	"go.etcd.io/etcd/client/v3"
 )
 
 const RETRY_TIME_FOR_REGISTERED uint = 600
+
 var SERVING_ADDR string = ":55555"
 
 type ConfigResponse struct {
+	NodeInfo
 	Nonce string `json:"nonce"`
-	Time int64 `json:"time"`
+	Time  int64  `json:"time"`
 }
 
 var DEFAULT_NODE_KEY string = "default"
@@ -34,6 +37,7 @@ type EtcdHandler struct {
 }
 
 var ID_KEY = regexp.MustCompile(`/config/[A-Za-z0-9=_-]+/id`)
+
 func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
 	resp, err := eh.KV.Get(ctx, "/config/", clientv3.WithKeysOnly(), clientv3.WithPrefix())
 	if err != nil {
@@ -41,7 +45,7 @@ func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
 	}
 	var count uint64
 	for _, kv := range resp.Kvs {
-		if(ID_KEY.Match(kv.Key)) {
+		if ID_KEY.Match(kv.Key) {
 			count++
 		}
 	}
@@ -52,21 +56,21 @@ type ConcentratorInfo struct {
 	Address4 string `json:"address4"`
 	Address6 string `json:"address6"`
 	Endpoint string `json:"endpoint"`
-	PubKey string `json:"pubkey"`
-	ID uint32 `json:"id"`
+	PubKey   string `json:"pubkey"`
+	ID       uint32 `json:"id"`
 }
 
 type NodeInfo struct {
-	ID *uint64 `json:"id,omitempty" etcd:"id"`
-	Concentrators []ConcentratorInfo `json:"concentrators,omitempty" etcd:"-"`
-	ConcentratorsJSON string `json:"-" etcd:"concentrators"`
-	MTU *uint64 `json:"mtu,omitempty" etcd:"mtu"`
-	Retry *uint64 `json:"retry,omitempty" etcd:"retry"`
-	WGKeepalive *uint64 `json:"wg_keepalive,omitempty" etcd:"wg_keepalive"`
-	Range4 *string `json:"range4,omitempty" etcd:"range4"`
-	Range6 *string `json:"range6,omitempty" etcd:"range6"`
-	Address4 *string `json:"address4,omitempty" etcd:"address4"`
-	Address6 *string `json:"address6,omitempty" etcd:"address6"`
+	ID                *uint64            `json:"id,omitempty" etcd:"id"`
+	Concentrators     []ConcentratorInfo `json:"concentrators,omitempty" etcd:"-"`
+	ConcentratorsJSON []byte             `json:"-" etcd:"concentrators"`
+	MTU               *uint64            `json:"mtu,omitempty" etcd:"mtu"`
+	Retry             *uint64            `json:"retry,omitempty" etcd:"retry"`
+	WGKeepalive       *uint64            `json:"wg_keepalive,omitempty" etcd:"wg_keepalive"`
+	Range4            *string            `json:"range4,omitempty" etcd:"range4"`
+	Range6            *string            `json:"range6,omitempty" etcd:"range6"`
+	Address4          *string            `json:"address4,omitempty" etcd:"address4"`
+	Address6          *string            `json:"address6,omitempty" etcd:"address6"`
 }
 
 type NodeNotFoundError struct {
@@ -74,7 +78,7 @@ type NodeNotFoundError struct {
 }
 
 func (err NodeNotFoundError) Error() string {
-	return fmt.Sprintf("The node with the pubkey '%s' is not in etcd")
+	return fmt.Sprintf("The node with the pubkey '%s' is not in etcd", err.Pubkey)
 }
 
 type EtcdMapping struct {
@@ -94,8 +98,8 @@ func createEtcdMapping(typ reflect.Type) map[string]EtcdMapping {
 
 	for _, field := range reflect.VisibleFields(typ) {
 		name := field.Name
-		
-		entry := EtcdMapping {
+
+		entry := EtcdMapping{
 			Index: field.Index,
 		}
 		if tag, ok := field.Tag.Lookup("etcd"); ok {
@@ -130,9 +134,14 @@ func unmarshalKVResponse(resp *clientv3.GetResponse, dest any, prefix string) er
 			field = field.Elem()
 		}
 
-		switch(field.Kind()) {
+		switch field.Kind() {
 		case reflect.String:
 			field.SetString(string(kv.Value))
+		case reflect.Slice:
+			if field.Type().Elem().Kind() != reflect.Uint8 {
+				panic("currently only slices of byte/uint8 can be handled")
+			}
+			field.SetBytes(kv.Value)
 		case reflect.Uint64:
 			val, err := strconv.ParseUint(string(kv.Value), 10, 64)
 			if err != nil {
@@ -179,13 +188,15 @@ type Signer interface {
 }
 
 type ConfigHandler struct {
-	tracker RequestTracker
-	signer Signer
+	tracker     RequestTracker
+	signer      Signer
+	etcdHandler EtcdHandler
 }
 
 var MISSING_V6MTU = errors.New("Missing v6mtu query parameter")
 var MISSING_PUBKEY = errors.New("Missing pubkey query parameter")
 var MISSING_NONCE = errors.New("Missing nonce query parameter")
+
 func (ch ConfigHandler) handleRequest(query url.Values, headers http.Header) (*ConfigResponse, error) {
 	var v6mtu uint64
 	var err error
@@ -224,14 +235,46 @@ func (ch ConfigHandler) handleRequest(query url.Values, headers http.Header) (*C
 		log.Println("v6mtu", v6mtu, "too small, using v4")
 	}
 
-	resp := &ConfigResponse{}
-	resp.Nonce = nonce
-	resp.Time = time.Now().Unix()
+	nodeinfo, err := ch.etcdHandler.GetNodeInfo(pubkey)
+	if err != nil {
+		return nil, err
+	}
 
-	_ = pubkey
-	_ = forceIPv4
+	if err := json.Unmarshal(nodeinfo.ConcentratorsJSON, &nodeinfo.Concentrators); err != nil {
+		return nil, err
+	}
 
-	return resp, nil
+	var i uint
+	var resolver net.Resolver
+	for _, concentrator := range nodeinfo.Concentrators {
+		host, port, err := net.SplitHostPort(concentrator.Endpoint)
+		if err != nil {
+			log.Println("Error splitting concentrator endpoint host/ip", concentrator.Endpoint, ":", err)
+			continue
+		}
+		network := "ip"
+		if forceIPv4 {
+			network = "ip4"
+		}
+		ip, err := resolver.LookupIP(context.Background(), network, host) // TODO better context
+		if err != nil {
+			// Fail the whole response, as smth. seems to be broken on our resolve side
+			return nil, err
+		}
+		if len(ip) == 0 {
+			continue
+		}
+		concentrator.Endpoint = net.JoinHostPort(ip[0].String(), port)
+		nodeinfo.Concentrators[i] = concentrator
+		i++
+	}
+	nodeinfo.Concentrators = nodeinfo.Concentrators[:i]
+
+	return &ConfigResponse{
+		Nonce:    nonce,
+		Time:     time.Now().Unix(),
+		NodeInfo: *nodeinfo,
+	}, nil
 }
 
 func (ch ConfigHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -264,11 +307,17 @@ func (ch ConfigHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					log.Println("Error writing json response:", err)
 					ch.tracker.RequestFailed()
 				} else {
-					if _, err = w.Write([]byte(signature)); err != nil {
-						log.Println("Error writing signature: ", err)
+					if _, err = w.Write([]byte{'\n'}); err != nil {
+						log.Println("Error writing newline:", err)
 						ch.tracker.RequestFailed()
 					} else {
-						ch.tracker.RequestSuccessful()
+
+						if _, err = w.Write([]byte(signature)); err != nil {
+							log.Println("Error writing signature: ", err)
+							ch.tracker.RequestFailed()
+						} else {
+							ch.tracker.RequestSuccessful()
+						}
 					}
 				}
 			}
@@ -284,13 +333,13 @@ func main() {
 		log.Fatalln("Couldn't setup etcd connection: ", err)
 	}
 
-	handler := EtcdHandler{ KV: etcd.KV }
+	handler := EtcdHandler{KV: etcd.KV}
 
 	metrics := NewMetrics(handler)
 
-	http.Handle("/config", &ConfigHandler{ tracker: metrics, signer: &SignifyCmdline {
+	http.Handle("/config", &ConfigHandler{tracker: metrics, signer: &SignifyCmdline{
 		PrivateKey: "/etc/ffbs/node-config.sec",
-	} })
+	}, etcdHandler: handler})
 	http.Handle("/etcd_status", metrics)
 
 	log.Println("Starting server on", SERVING_ADDR)
