@@ -1,4 +1,4 @@
-package main
+package ffbs
 
 import (
 	"crypto/tls"

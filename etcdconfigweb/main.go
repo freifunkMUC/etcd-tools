@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"gitli.stratum0.org/ffbs/etcd-tools/etcdhelper"
+	"gitli.stratum0.org/ffbs/etcd-tools/ffbs"
 	"gitli.stratum0.org/ffbs/etcd-tools/signify"
 
 	"go.etcd.io/etcd/client/v3"
@@ -246,7 +247,7 @@ func (ch ConfigHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	etcd, err := CreateEtcdConnection()
+	etcd, err := ffbs.CreateEtcdConnection()
 	if err != nil {
 		log.Fatalln("Couldn't setup etcd connection: ", err)
 	}
