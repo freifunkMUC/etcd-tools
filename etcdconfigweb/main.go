@@ -1,21 +1,21 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"net/http"
-	"net/url"
-	"reflect"
-	"strings"
-	"time"
-	//"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"net"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
+	"time"
+
+	"gitli.stratum0.org/ffbs/etcd-tools/etcdhelper"
 
 	"go.etcd.io/etcd/client/v3"
 )
@@ -81,87 +81,6 @@ func (err NodeNotFoundError) Error() string {
 	return fmt.Sprintf("The node with the pubkey '%s' is not in etcd", err.Pubkey)
 }
 
-type EtcdMapping struct {
-	Index []int
-}
-
-func (em EtcdMapping) ResolveValue(outer reflect.Value) reflect.Value {
-	return outer.FieldByIndex(em.Index)
-}
-
-func createEtcdMapping(typ reflect.Type) map[string]EtcdMapping {
-	if typ.Kind() != reflect.Struct {
-		panic("currently only structs can be mapped")
-	}
-
-	mapping := make(map[string]EtcdMapping)
-
-	for _, field := range reflect.VisibleFields(typ) {
-		name := field.Name
-
-		entry := EtcdMapping{
-			Index: field.Index,
-		}
-		if tag, ok := field.Tag.Lookup("etcd"); ok {
-			if tag == "-" { // skip field
-				continue
-			}
-			name = tag
-		}
-
-		mapping[name] = entry
-	}
-
-	return mapping
-}
-
-func unmarshalKVResponse(resp *clientv3.GetResponse, dest any, prefix string) error {
-	if reflect.TypeOf(dest).Kind() != reflect.Pointer {
-		panic("unmarshalKVResponse expects a pointer type as the destination value")
-	}
-	val := reflect.ValueOf(dest).Elem()
-
-	mapping := createEtcdMapping(val.Type())
-
-	for _, kv := range resp.Kvs {
-		keyname := strings.TrimPrefix(string(kv.Key), prefix)
-		field := mapping[keyname].ResolveValue(val)
-
-		if field.Kind() == reflect.Pointer {
-			// initialize ptr and switch field to the actual value
-			ptr := reflect.New(field.Type().Elem())
-			field.Set(ptr)
-			field = field.Elem()
-		}
-
-		switch field.Kind() {
-		case reflect.String:
-			field.SetString(string(kv.Value))
-		case reflect.Slice:
-			if field.Type().Elem().Kind() != reflect.Uint8 {
-				panic("currently only slices of byte/uint8 can be handled")
-			}
-			field.SetBytes(kv.Value)
-		case reflect.Uint64:
-			val, err := strconv.ParseUint(string(kv.Value), 10, 64)
-			if err != nil {
-				return err
-			}
-			field.SetUint(val)
-		case reflect.Int64:
-			val, err := strconv.ParseInt(string(kv.Value), 10, 64)
-			if err != nil {
-				return err
-			}
-			field.SetInt(val)
-		default:
-			panic("unmarshaling " + field.Kind().String() + " is not implemented")
-		}
-	}
-
-	return nil
-}
-
 func (eh EtcdHandler) fillNodeInfo(pubkey string, info *NodeInfo) error {
 	prefix := fmt.Sprintf("/config/%s/", pubkey)
 	resp, err := eh.KV.Get(context.Background(), prefix, clientv3.WithPrefix()) // TODO remove background context
@@ -169,7 +88,7 @@ func (eh EtcdHandler) fillNodeInfo(pubkey string, info *NodeInfo) error {
 		return err
 	}
 
-	return unmarshalKVResponse(resp, info, prefix)
+	return etcdhelper.UnmarshalKVResponse(resp, info, prefix)
 }
 
 func (eh EtcdHandler) GetNodeInfo(pubkey string) (*NodeInfo, error) {
@@ -292,13 +211,11 @@ func (ch ConfigHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		ch.tracker.RequestFailed()
 	} else {
 		w.Header().Add("Content-Type", "text/plain")
-		// var respJSON bytes.Buffer
 
 		if toSign, err := json.Marshal(resp); err != nil {
 			log.Println("Couldn't encode JSON response:", err)
 			ch.tracker.RequestFailed()
 		} else {
-			// toSign := respJSON.Bytes()
 			if signature, err := ch.signer.Sign(toSign); err != nil {
 				log.Println("Error signing response:", err)
 				ch.tracker.RequestFailed()
