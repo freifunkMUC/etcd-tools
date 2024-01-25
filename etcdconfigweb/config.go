@@ -13,10 +13,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gitli.stratum0.org/ffbs/etcd-tools/ffbs"
 )
 
 type ConfigResponse struct {
-	NodeInfo
+	ffbs.NodeInfo
 	Nonce string `json:"nonce"`
 	Time  int64  `json:"time"`
 }
@@ -24,7 +26,7 @@ type ConfigResponse struct {
 type ConfigHandler struct {
 	tracker     RequestTracker
 	signer      Signer
-	etcdHandler EtcdHandler
+	etcdHandler *ffbs.EtcdHandler
 }
 
 var MISSING_V6MTU = errors.New("Missing v6mtu query parameter")

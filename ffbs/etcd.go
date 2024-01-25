@@ -18,7 +18,7 @@ type EtcdConfigFile struct {
 	Key       string
 }
 
-func CreateEtcdConnection() (*clientv3.Client, error) {
+func CreateEtcdConnection() (*EtcdHandler, error) {
 	f, err := os.Open("/etc/etcd-client.json")
 	if err != nil {
 		return nil, err
@@ -47,11 +47,15 @@ func CreateEtcdConnection() (*clientv3.Client, error) {
 		return nil, err
 	}
 
-	return clientv3.New(clientv3.Config{
+	kv, err := clientv3.New(clientv3.Config{
 		Endpoints: strings.Split(cfg.Endpoints, ","),
 		TLS: &tls.Config{
 			Certificates: []tls.Certificate{cert},
 			RootCAs:      rootCAs,
 		},
 	})
+
+	return &EtcdHandler{
+		KV: kv,
+	}, err
 }
