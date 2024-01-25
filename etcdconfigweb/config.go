@@ -33,7 +33,7 @@ var MISSING_V6MTU = errors.New("Missing v6mtu query parameter")
 var MISSING_PUBKEY = errors.New("Missing pubkey query parameter")
 var MISSING_NONCE = errors.New("Missing nonce query parameter")
 
-func (ch ConfigHandler) handleRequest(query url.Values, headers http.Header) (*ConfigResponse, error) {
+func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, headers http.Header) (*ConfigResponse, error) {
 	var v6mtu uint64
 	var err error
 	if mtu := query["v6mtu"]; len(mtu) > 0 {
@@ -71,7 +71,7 @@ func (ch ConfigHandler) handleRequest(query url.Values, headers http.Header) (*C
 		log.Println("v6mtu", v6mtu, "too small, using v4")
 	}
 
-	nodeinfo, err := ch.etcdHandler.GetNodeInfo(pubkey)
+	nodeinfo, err := ch.etcdHandler.GetNodeInfo(ctx, pubkey)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (ch ConfigHandler) handleRequest(query url.Values, headers http.Header) (*C
 		if forceIPv4 {
 			network = "ip4"
 		}
-		ip, err := resolver.LookupIP(context.Background(), network, host) // TODO better context
+		ip, err := resolver.LookupIP(ctx, network, host)
 		if err != nil {
 			// Fail the whole response, as smth. seems to be broken on our resolve side
 			return nil, err
@@ -121,7 +121,7 @@ func (ch ConfigHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	resp, err := ch.handleRequest(req.URL.Query(), req.Header)
+	resp, err := ch.handleRequest(req.Context(), req.URL.Query(), req.Header)
 	if err != nil {
 		fmt.Println("Error while handling configuration request:", err)
 		w.WriteHeader(http.StatusBadRequest)

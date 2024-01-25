@@ -27,7 +27,7 @@ func showoverrides(cmd *cobra.Command, args []string) {
 		log.Fatalln("Couldn't setup etcd connection:", err)
 	}
 
-	def, err := etcd.GetDefaultNodeInfo()
+	def, err := etcd.GetDefaultNodeInfo(context.Background())
 	if err != nil {
 		log.Fatalln("Couldn't get default node info:", err)
 	}
@@ -43,7 +43,7 @@ func showoverrides(cmd *cobra.Command, args []string) {
 		log.Fatalln("Couldn't iterate pubkeys:", err)
 	}
 	for pubkey := range it {
-		nodeinfo, err := etcd.GetOnlyNodeInfo(pubkey)
+		nodeinfo, err := etcd.GetOnlyNodeInfo(context.Background(), pubkey)
 		if err != nil {
 			log.Fatalln("Couldn't get nodeinfo for", pubkey, err)
 		}

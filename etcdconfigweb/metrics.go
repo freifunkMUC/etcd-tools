@@ -69,7 +69,7 @@ type MetricResponse struct {
 }
 
 func (m *Metrics) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	count, err := m.counter.NodeCount(context.Background()) // TODO use proper context
+	count, err := m.counter.NodeCount(req.Context())
 	if err != nil {
 		log.Println("Error trying to get the node count:", err)
 		w.WriteHeader(http.StatusInternalServerError)

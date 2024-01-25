@@ -14,9 +14,9 @@ type EtcdHandler struct {
 	KV clientv3.KV
 }
 
-func (eh EtcdHandler) fillNodeInfo(pubkey string, info *NodeInfo) error {
+func (eh EtcdHandler) fillNodeInfo(ctx context.Context, pubkey string, info *NodeInfo) error {
 	prefix := fmt.Sprintf("/config/%s/", pubkey)
-	resp, err := eh.KV.Get(context.Background(), prefix, clientv3.WithPrefix()) // TODO remove background context
+	resp, err := eh.KV.Get(ctx, prefix, clientv3.WithPrefix())
 	if err != nil {
 		return err
 	}
@@ -24,22 +24,22 @@ func (eh EtcdHandler) fillNodeInfo(pubkey string, info *NodeInfo) error {
 	return etcdhelper.UnmarshalKVResponse(resp, info, prefix)
 }
 
-func (eh EtcdHandler) GetOnlyNodeInfo(pubkey string) (*NodeInfo, error) {
+func (eh EtcdHandler) GetOnlyNodeInfo(ctx context.Context, pubkey string) (*NodeInfo, error) {
 	info := &NodeInfo{}
-	err := eh.fillNodeInfo(pubkey, info)
+	err := eh.fillNodeInfo(ctx, pubkey, info)
 	return info, err
 }
 
-func (eh EtcdHandler) GetDefaultNodeInfo() (*NodeInfo, error) {
-	return eh.GetOnlyNodeInfo(DEFAULT_NODE_KEY)
+func (eh EtcdHandler) GetDefaultNodeInfo(ctx context.Context) (*NodeInfo, error) {
+	return eh.GetOnlyNodeInfo(ctx, DEFAULT_NODE_KEY)
 }
 
-func (eh EtcdHandler) GetNodeInfo(pubkey string) (*NodeInfo, error) {
-	info, err := eh.GetDefaultNodeInfo()
+func (eh EtcdHandler) GetNodeInfo(ctx context.Context, pubkey string) (*NodeInfo, error) {
+	info, err := eh.GetDefaultNodeInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := eh.fillNodeInfo(pubkey, info); err != nil {
+	if err := eh.fillNodeInfo(ctx, pubkey, info); err != nil {
 		return nil, err
 	}
 	return info, nil
