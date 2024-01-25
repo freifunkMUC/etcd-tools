@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,7 +74,43 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 
 	nodeinfo, err := ch.etcdHandler.GetNodeInfo(ctx, pubkey)
 	if err != nil {
-		return nil, err
+		var notfoundError *ffbs.NodeNotFoundError
+		if !errors.As(err, &notfoundError) {
+			return nil, err
+		}
+
+		// insert new node
+		err := ch.etcdHandler.CreateNode(ctx, pubkey, func(info *ffbs.NodeInfo) {
+			const V4_BASE uint32 = 10 << 24
+			const V4_RANGE_SIZE uint8 = 10
+			const V6_BASE_HIGH uint64 = 0x20010bf70381 << 16
+
+			num := *info.ID
+
+			var v4Addr [net.IPv4len]byte
+			binary.BigEndian.PutUint32(v4Addr[:], V4_BASE|(uint32(num)<<V4_RANGE_SIZE))
+			v4range := fmt.Sprintf("%s/%d", net.IP(v4Addr[:]), 8*net.IPv4len-V4_RANGE_SIZE)
+			v4Addr[net.IPv4len-1] = 1
+			v4addr := net.IP(v4Addr[:]).String()
+
+			var v6Addr [net.IPv6len]byte
+			binary.BigEndian.PutUint64(v6Addr[:8], V6_BASE_HIGH|uint64(num))
+			v6range := fmt.Sprintf("%s/64", net.IP(v6Addr[:]))
+			v6Addr[net.IPv6len-1] = 1
+			v6addr := net.IP(v6Addr[:]).String()
+
+			info.Address4 = &v4addr
+			info.Range4 = &v4range
+			info.Address6 = &v6addr
+			info.Range6 = &v6range
+		})
+		if err != nil {
+			return nil, err
+		}
+		nodeinfo, err = ch.etcdHandler.GetNodeInfo(ctx, pubkey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := json.Unmarshal(nodeinfo.ConcentratorsJSON, &nodeinfo.Concentrators); err != nil {
