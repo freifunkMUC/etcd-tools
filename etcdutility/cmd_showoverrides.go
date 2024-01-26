@@ -27,9 +27,9 @@ func showoverrides(cmd *cobra.Command, args []string) {
 		log.Fatalln("Couldn't setup etcd connection:", err)
 	}
 
-	def, err := etcd.GetDefaultNodeInfo(context.Background())
+	nodes, def, err := etcd.GetAllNodeInfo(context.Background())
 	if err != nil {
-		log.Fatalln("Couldn't get default node info:", err)
+		log.Fatalln("Couldn't get all nodes:", err)
 	}
 	defval := reflect.ValueOf(def).Elem()
 
@@ -38,15 +38,7 @@ func showoverrides(cmd *cobra.Command, args []string) {
 		unchanged[field.Name] = 0
 	}
 
-	it, err := etcd.PubkeyIterator(context.Background())
-	if err != nil {
-		log.Fatalln("Couldn't iterate pubkeys:", err)
-	}
-	for pubkey := range it {
-		nodeinfo, err := etcd.GetOnlyNodeInfo(context.Background(), pubkey)
-		if err != nil {
-			log.Fatalln("Couldn't get nodeinfo for", pubkey, err)
-		}
+	for pubkey, nodeinfo := range nodes {
 		nodeinfovalue := reflect.ValueOf(nodeinfo).Elem()
 
 		for _, field := range reflect.VisibleFields(defval.Type()) {

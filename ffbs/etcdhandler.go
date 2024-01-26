@@ -107,20 +107,30 @@ func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
 	return count, nil
 }
 
-func (eh EtcdHandler) PubkeyIterator(ctx context.Context) (<-chan string, error) {
+func (eh EtcdHandler) GetAllNodeInfo(ctx context.Context) (map[string]*NodeInfo, *NodeInfo, error) {
 	resp, err := eh.KV.Get(ctx, "/config/", clientv3.WithKeysOnly(), clientv3.WithPrefix())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	ch := make(chan string)
-	go func() {
-		defer close(ch)
-		for _, kv := range resp.Kvs {
-			if match := ID_KEY.FindSubmatch(kv.Key); match != nil {
-				ch <- string(match[1])
+	list := make(map[string]*NodeInfo)
+	// TODO Replace this inefficient loop/approach with an improved etcdhelper.UnmarshalKVResponse
+	for _, kv := range resp.Kvs {
+		if match := ID_KEY.FindSubmatch(kv.Key); match != nil {
+			pubkey := string(match[1])
+			list[pubkey], err = eh.GetOnlyNodeInfo(ctx, pubkey)
+			if err != nil {
+				return nil, nil, err
 			}
 		}
-	}()
-	return ch, nil
+	}
+	// will also be elimintated/mapped with the unmarshal, the loop doesn't catch it, as the default doesn't have an id field
+	list[DEFAULT_NODE_KEY], err = eh.GetDefaultNodeInfo(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defaultNode := list[DEFAULT_NODE_KEY]
+	delete(list, DEFAULT_NODE_KEY)
+	return list, defaultNode, nil
 }
