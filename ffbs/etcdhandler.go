@@ -69,7 +69,6 @@ func (eh EtcdHandler) CreateNode(ctx context.Context, pubkey string, updateNodeI
 		if err != nil {
 			return err
 		}
-		fmt.Println("Got current id:", id)
 
 		checkID := clientv3.Compare(clientv3.Value(NEXT_FREE_ID_KEY), "=", strconv.FormatUint(id, 10))
 		updateID := clientv3.OpPut(NEXT_FREE_ID_KEY, strconv.FormatUint(id+1, 10))
@@ -79,9 +78,7 @@ func (eh EtcdHandler) CreateNode(ctx context.Context, pubkey string, updateNodeI
 		}
 		updateNodeInfo(&nodeinfo)
 
-		fmt.Println("Marshaling:", id)
 		ops := etcdhelper.Marshal(&nodeinfo, prefix)
-		fmt.Println("foobar", id)
 
 		ops = append(ops, updateID)
 		txresp, err := eh.KV.Txn(ctx).If(checkID).Then(ops...).Commit()
@@ -91,7 +88,6 @@ func (eh EtcdHandler) CreateNode(ctx context.Context, pubkey string, updateNodeI
 		if txresp.Succeeded {
 			return nil
 		}
-		fmt.Println(txresp)
 	}
 }
 
