@@ -1,0 +1,23 @@
+default:
+  tags:
+    - docker
+  image: golang:1.19
+
+stages:
+  - build
+
+build:
+  stage: build
+  script:
+    - apt update
+    - apt install git
+    - go fmt ./...
+    - go mod tidy
+    - git diff --exit-code
+    - go vet ./...
+    - mkdir bin
+    - GOBIN="$PWD/bin" CGO_ENABLED=0 go install ./...
+  artifacts:
+    paths:
+      - bin/*
+    expire_in: 4 weeks
