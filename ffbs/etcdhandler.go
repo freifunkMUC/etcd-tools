@@ -3,7 +3,6 @@ package ffbs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"regexp"
 	"strconv"
 
@@ -17,7 +16,7 @@ type EtcdHandler struct {
 }
 
 func (eh EtcdHandler) fillNodeInfo(ctx context.Context, pubkey string, info *NodeInfo) error {
-	prefix := fmt.Sprintf("/config/%s/", pubkey)
+	prefix := CONFIG_PREFIX + pubkey + "/"
 	resp, err := eh.KV.Get(ctx, prefix, clientv3.WithPrefix())
 	if err != nil {
 		return err
@@ -56,7 +55,7 @@ func (eh EtcdHandler) GetNodeInfo(ctx context.Context, pubkey string) (*NodeInfo
 var ErrMissingNextFreeID = errors.New("Couldn't find the key for next free id")
 
 func (eh EtcdHandler) CreateNode(ctx context.Context, pubkey string, updateNodeInfo func(*NodeInfo)) error {
-	prefix := fmt.Sprintf("/config/%s/", pubkey)
+	prefix := CONFIG_PREFIX + pubkey + "/"
 	for {
 		resp, err := eh.KV.Get(ctx, NEXT_FREE_ID_KEY)
 		if err != nil {
@@ -91,10 +90,10 @@ func (eh EtcdHandler) CreateNode(ctx context.Context, pubkey string, updateNodeI
 	}
 }
 
-var ID_KEY = regexp.MustCompile(`/config/([A-Za-z0-9=_-]+)/id`)
+var ID_KEY = regexp.MustCompile(regexp.QuoteMeta(CONFIG_PREFIX) + `([A-Za-z0-9=_-]+)/id`)
 
 func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
-	resp, err := eh.KV.Get(ctx, "/config/", clientv3.WithKeysOnly(), clientv3.WithPrefix())
+	resp, err := eh.KV.Get(ctx, CONFIG_PREFIX, clientv3.WithKeysOnly(), clientv3.WithPrefix())
 	if err != nil {
 		return 0, err
 	}
@@ -108,7 +107,7 @@ func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
 }
 
 func (eh EtcdHandler) GetAllNodeInfo(ctx context.Context) (map[string]*NodeInfo, *NodeInfo, error) {
-	resp, err := eh.KV.Get(ctx, "/config/", clientv3.WithKeysOnly(), clientv3.WithPrefix())
+	resp, err := eh.KV.Get(ctx, CONFIG_PREFIX, clientv3.WithKeysOnly(), clientv3.WithPrefix())
 	if err != nil {
 		return nil, nil, err
 	}

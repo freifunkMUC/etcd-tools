@@ -1,4 +1,5 @@
 package ffbs
 
-var DEFAULT_NODE_KEY string = "default"
-var NEXT_FREE_ID_KEY string = "next_free_id"
+const CONFIG_PREFIX = "/config/"
+const DEFAULT_NODE_KEY = "default"
+const NEXT_FREE_ID_KEY = "next_free_id"
