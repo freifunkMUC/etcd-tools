@@ -3,3 +3,5 @@ etcdconfigweb
 !etcdconfigweb/
 etcdutility
 !etcdutility/
+concentratorconfig
+!concentratorconfig/
