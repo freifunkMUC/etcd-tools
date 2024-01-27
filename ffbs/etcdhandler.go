@@ -17,18 +17,14 @@ type EtcdHandler struct {
 
 func (eh EtcdHandler) fillNodeInfo(ctx context.Context, pubkey string, info *NodeInfo) error {
 	prefix := CONFIG_PREFIX + pubkey + "/"
-	resp, err := eh.KV.Get(ctx, prefix, clientv3.WithPrefix())
-	if err != nil {
-		return err
-	}
+	applied, err := etcdhelper.UnmarshalGet(ctx, eh.KV, prefix, info)
 
-	if len(resp.Kvs) == 0 {
+	if err == nil && applied == 0 {
 		return &NodeNotFoundError{
 			Pubkey: pubkey,
 		}
 	}
-
-	return etcdhelper.UnmarshalKVResponse(resp, info, prefix)
+	return err
 }
 
 func (eh EtcdHandler) GetOnlyNodeInfo(ctx context.Context, pubkey string) (*NodeInfo, error) {
@@ -107,25 +103,8 @@ func (eh EtcdHandler) NodeCount(ctx context.Context) (uint64, error) {
 }
 
 func (eh EtcdHandler) GetAllNodeInfo(ctx context.Context) (map[string]*NodeInfo, *NodeInfo, error) {
-	resp, err := eh.KV.Get(ctx, CONFIG_PREFIX, clientv3.WithKeysOnly(), clientv3.WithPrefix())
-	if err != nil {
-		return nil, nil, err
-	}
-
 	list := make(map[string]*NodeInfo)
-	// TODO Replace this inefficient loop/approach with an improved etcdhelper.UnmarshalKVResponse
-	for _, kv := range resp.Kvs {
-		if match := ID_KEY.FindSubmatch(kv.Key); match != nil {
-			pubkey := string(match[1])
-			list[pubkey], err = eh.GetOnlyNodeInfo(ctx, pubkey)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-	// will also be elimintated/mapped with the unmarshal, the loop doesn't catch it, as the default doesn't have an id field
-	list[DEFAULT_NODE_KEY], err = eh.GetDefaultNodeInfo(ctx)
-	if err != nil {
+	if _, err := etcdhelper.UnmarshalGet(ctx, eh.KV, CONFIG_PREFIX, &list); err != nil {
 		return nil, nil, err
 	}
 
