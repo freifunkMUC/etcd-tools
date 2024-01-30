@@ -113,3 +113,5 @@ gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C
 gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+paepcke.de/signify v0.1.22 h1:sxKnrbb/oD+HojHOhaUhLYYcXqoqd4lavpM55BDqMbI=
+paepcke.de/signify v0.1.22/go.mod h1:wEWEfOZAUI+P42p2OvJ1hUp6rWBVb/QvhprEIrq7LTI=
