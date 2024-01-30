@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,15 @@ func run(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	pubkey, err := base64.URLEncoding.DecodeString(args[1])
+	if err != nil {
+		pubkey, err = base64.StdEncoding.DecodeString(args[1])
+		if err != nil {
+			fmt.Println("Couldn't parse pubkey as Base64 Std or URLEncoding:", err)
+			return
+		}
+	}
+
 	u.Path, err = url.JoinPath(u.Path, "config")
 	if u.Scheme == "" {
 		u.Scheme = "http"
@@ -39,7 +49,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	v := url.Values{}
 	v.Set("v6mtu", "1500")
-	v.Set("pubkey", args[1])
+	v.Set("pubkey", base64.StdEncoding.EncodeToString(pubkey))
 	v.Set("nonce", "foobar")
 	u.RawQuery = v.Encode()
 

@@ -48,7 +48,7 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 
 	var pubkey string
 	if key := query.Get("pubkey"); key != "" {
-		pk, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(key, " ", "+"))
+		pk, err := base64.StdEncoding.DecodeString(key)
 		if err != nil {
 			return nil, fmt.Errorf("Couldn't decode the provided pubkey '%s': %w", key, err)
 		}
