@@ -170,6 +170,7 @@ func (ch ConfigHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			log.Println("Couldn't encode JSON response:", err)
 			ch.tracker.RequestFailed()
 		} else {
+			toSign = append(toSign, '\n')
 			if signature, err := ch.signer.Sign(toSign); err != nil {
 				log.Println("Error signing response:", err)
 				ch.tracker.RequestFailed()
@@ -178,17 +179,11 @@ func (ch ConfigHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					log.Println("Error writing json response:", err)
 					ch.tracker.RequestFailed()
 				} else {
-					if _, err = w.Write([]byte{'\n'}); err != nil {
-						log.Println("Error writing newline:", err)
+					if _, err = w.Write([]byte(signature)); err != nil {
+						log.Println("Error writing signature: ", err)
 						ch.tracker.RequestFailed()
 					} else {
-
-						if _, err = w.Write([]byte(signature)); err != nil {
-							log.Println("Error writing signature: ", err)
-							ch.tracker.RequestFailed()
-						} else {
-							ch.tracker.RequestSuccessful()
-						}
+						ch.tracker.RequestSuccessful()
 					}
 				}
 			}

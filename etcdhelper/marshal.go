@@ -98,18 +98,21 @@ func unmarshalSortedGet(resp *clientv3.GetResponse, prefix string, dest reflect.
 				panic("currently only slices of byte/uint8 can be handled")
 			}
 			field.SetBytes(kv.Value)
+			appliedValues++
 		case reflect.Uint64:
 			val, err := strconv.ParseUint(string(kv.Value), 10, 64)
 			if err != nil {
 				return appliedValues, err
 			}
 			field.SetUint(val)
+			appliedValues++
 		case reflect.Int64:
 			val, err := strconv.ParseInt(string(kv.Value), 10, 64)
 			if err != nil {
 				return appliedValues, err
 			}
 			field.SetInt(val)
+			appliedValues++
 		default:
 			panic("unmarshaling " + field.Kind().String() + " is not implemented")
 		}
