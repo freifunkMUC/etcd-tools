@@ -10,7 +10,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"paepcke.de/signify"
+	"go.seankhliao.com/signify"
 )
 
 const FFBS_PUBKEY = "RWTecZzXNMuXYhvcquk321nc73U3oc7xm6Fm5FEF5y3X/HUyWsvp/rHp"
@@ -68,26 +68,36 @@ func run(cmd *cobra.Command, args []string) {
 
 	sep := bytes.LastIndexByte(data, '\n')
 	content := data[:sep+1]
-	sig := data[sep+1:]
+	signature := string(data[sep+1:])
 
 	fmt.Printf("Data: %#v\n", string(content))
-	fmt.Printf("Signature: %#v\n", string(sig))
+	fmt.Printf("Signature: %#v\n", signature)
 
-	pk := signify.NewPublicKey()
-	pk.Base64 = FFBS_PUBKEY
-	pk.Decode()
-	msg := signify.NewMessage()
-	msg.Raw = content
-	msg.Signature.Base64 = string(sig)
-	msg.Signature.Decode()
-	msg.PublicKey = pk
-	valid, err := msg.Verify(pk)
+	pkbin, err := base64.StdEncoding.DecodeString(FFBS_PUBKEY)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	if valid {
+	pk, err := signify.ParsePublicKey(pkbin)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	sigbin, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	sig, err := signify.ParseSignature(sigbin)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if signify.Verify(pk, content, sig) {
 		fmt.Println("The signature is valid")
+	} else {
+		fmt.Println("The signature is INVALID!!!")
 	}
 }
 

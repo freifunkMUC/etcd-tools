@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"gitli.stratum0.org/ffbs/etcd-tools/ffbs"
-	"gitli.stratum0.org/ffbs/etcd-tools/signify"
 )
 
 func main() {
@@ -20,11 +19,14 @@ func main() {
 		servingAddr = os.Args[1]
 	}
 
+	signer, err := NewSignifySignerFromPrivateKeyFile("/etc/ffbs/node-config.sec")
+	if err != nil {
+		log.Fatalln("Couldn't parse signify private key:", err)
+	}
+
 	metrics := NewMetrics(etcd)
 
-	http.Handle("/config", &ConfigHandler{tracker: metrics, signer: &signify.Cmdline{
-		PrivateKey: "/etc/ffbs/node-config.sec",
-	}, etcdHandler: etcd})
+	http.Handle("/config", &ConfigHandler{tracker: metrics, signer: signer, etcdHandler: etcd})
 	http.Handle("/etcd_status", metrics)
 
 	log.Println("Starting server on", servingAddr)
