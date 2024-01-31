@@ -1,3 +1,9 @@
+/*
+Utility for the ffbs etcd. Currently it can only show all nodes overriding a default value and
+the number of nodes affected when chaning the default value.
+
+See the help page (pass "--help" as argument) for further documentation.
+*/
 package main
 
 import (

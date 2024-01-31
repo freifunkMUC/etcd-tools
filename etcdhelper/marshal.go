@@ -1,3 +1,4 @@
+// Package etcdhelper implements marshaling whole etcd prefixes from and to go values.
 package etcdhelper
 
 import (
@@ -9,6 +10,12 @@ import (
 	"go.etcd.io/etcd/client/v3"
 )
 
+// Makes an etcd prefix query and unmarshals the result into the given `dest` value.
+// It returns the number of query results that were mapped to the `dest` value.
+// The unmarshal currently can only handle maps with string keys and structs.
+// Structs are mapped with their element names by default. To override this use the `etcd` tag.
+// A `-` as key name indicates that the given struct element is not mapped to etcd.
+// E.g. to map the etcd field named foo use `etcd:"foo"` for the corresponding struct field
 func UnmarshalGet(ctx context.Context, kv clientv3.KV, prefix string, dest any) (uint, error) {
 	// we do this here, as we need to control the sorting order for unmarshal
 	// this allows us to sort the keys lexicographical, allowing us to use efficient recursion to fill sub structures
@@ -124,6 +131,13 @@ func unmarshalSortedGet(resp *clientv3.GetResponse, prefix string, dest reflect.
 
 }
 
+// Marshals a go value to a slice of etcd PUT operations with a given prefix.
+//
+// Currently only go structs are supported.
+//
+// Use the etcd tag to map a given struct field to a different name in etcd
+// or use "-" to don't map the key. E.g. `etcd:"foo"` maps a struct
+// field to the etcd key named "foo".
 func Marshal(source any, prefix string) []clientv3.Op {
 	val := reflect.ValueOf(source)
 	for val.Kind() == reflect.Pointer {

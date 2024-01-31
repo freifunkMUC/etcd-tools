@@ -1,3 +1,4 @@
+// Freifunk Braunschweig specific structures and helper functionality
 package ffbs
 
 import (
@@ -5,6 +6,7 @@ import (
 	"time"
 )
 
+// Concentrator configuration encoded as a JSON string in the /config/[pubkey]/concentrator key
 type ConcentratorInfo struct {
 	Address4 string `json:"address4"`
 	Address6 string `json:"address6"`
@@ -13,6 +15,10 @@ type ConcentratorInfo struct {
 	ID       uint32 `json:"id"`
 }
 
+// The node specific configuration values stored in the /config/[pubkey] etcd prefix.
+//
+// A special node info lives in the /config/default etcd prefix, which is usually used
+// to fill all missing values from the individual nodes.
 type NodeInfo struct {
 	ID                *uint64            `json:"id,omitempty" etcd:"id"`
 	Concentrators     []ConcentratorInfo `json:"concentrators,omitempty" etcd:"-"`
@@ -26,6 +32,7 @@ type NodeInfo struct {
 	Address6          *string            `json:"address6,omitempty" etcd:"address6"`
 }
 
+// Returns the parsed Range4/Range6 values. Empty and invalid values are omitted.
 func (ni NodeInfo) IPNets() []net.IPNet {
 	nets := make([]net.IPNet, 0, 2)
 	_, range4, err := net.ParseCIDR(*ni.Range4)
@@ -40,6 +47,9 @@ func (ni NodeInfo) IPNets() []net.IPNet {
 	return nets
 }
 
+// Parses the KeepaliveTime into an [time.Duration]
+//
+// If the keepalive time is nil, it also returns nil
 func (ni NodeInfo) WGKeepaliveTime() *time.Duration {
 	if ni.WGKeepalive == nil {
 		return nil

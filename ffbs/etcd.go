@@ -11,6 +11,7 @@ import (
 	"go.etcd.io/etcd/client/v3"
 )
 
+// Representing the JSON values stored in /etc/etcd-client.json .
 type EtcdConfigFile struct {
 	Endpoints string // comma separated
 	CACert    string
@@ -18,6 +19,12 @@ type EtcdConfigFile struct {
 	Key       string
 }
 
+// Establishes an etcd connection with the configuration
+// under /etc/etcd-client.json .
+//
+// This function will only allow the configured CACert and
+// ignores system root certificate authorities when connecting
+// to the etcd server.
 func CreateEtcdConnection() (*EtcdHandler, error) {
 	f, err := os.Open("/etc/etcd-client.json")
 	if err != nil {

@@ -1,3 +1,14 @@
+/*
+concentratorconfig configures the Wireguard interface based on the etcd KV configuration.
+It checks every minute for updates and applies these in Wireguard.
+If an error occurs, it will print it and won't update any node.
+
+Pass the simulate argument to only show the wireguard interface changes that would be applied.
+When it is started this way, it exits after printing the changes.
+
+The program expects a fixed Wireguard interface name (see [WG_DEVICENAME]) and
+an etcd configuration file at a fixed location (see [gitli.stratum0.org/ffbs/etcd-tools/ffbs.CreateEtcdConnection]).
+*/
 package main
 
 import (
