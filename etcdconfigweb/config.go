@@ -117,9 +117,14 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 		return nil, err
 	}
 
+	concentratorBitmask := nodeinfo.SelectedConcentratorsBitmask()
 	var i uint
 	var resolver net.Resolver
 	for _, concentrator := range nodeinfo.Concentrators {
+		if (concentratorBitmask>>(concentrator.ID-1))&1 == 0 {
+			continue // Concentrator not enabled in bitmask
+		}
+
 		host, port, err := net.SplitHostPort(concentrator.Endpoint)
 		if err != nil {
 			log.Println("Error splitting concentrator endpoint host/ip", concentrator.Endpoint, ":", err)
