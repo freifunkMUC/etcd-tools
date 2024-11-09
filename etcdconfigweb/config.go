@@ -82,25 +82,25 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 
 		// insert new node
 		err := ch.etcdHandler.CreateNode(ctx, pubkey, func(info *ffbs.NodeInfo) {
-			v4_base_str := os.Getenv("PARKER_V4_BASE")
+			v4_range_str := os.Getenv("PARKER_V4_RANGE")
 			v4_range_size_str := os.Getenv("PARKER_V4_RANGE_SIZE")
-			v6_base_high_str := os.Getenv("PARKER_V6_BASE_HIGH")
+			v6_range_str := os.Getenv("PARKER_V6_RANGE")
 
-			if v4_base_str == "" {
-				v4_base_str = "10"
+			if v4_range_str == "" {
+				v4_range_str = "10.0.0.0"
 			}
 			if v4_range_size_str == "" {
 				v4_range_size_str = "10"
 			}
-			if v6_base_high_str == "" {
-				v6_base_high_str = "0x20010bf70381"
+			if v6_range_str == "" {
+				v6_range_str = "2001:bf7:381::"
 			}
 
-			v4_base_uint32, err := strconv.ParseInt(v4_base_str, 0, 32)
-			V4_BASE := uint32(v4_base_uint32) << 24
-			if err != nil {
-				panic(err)
+			v4_base_ip := net.ParseIP(v4_range_str).To4()
+			if v4_base_ip == nil {
+				panic("Invalid v4 base address" + v4_range_str)
 			}
+			V4_BASE := binary.BigEndian.Uint32(v4_base_ip)
 
 			v4_range_uint8, err := strconv.ParseInt(v4_range_size_str, 0, 8)
 			V4_RANGE_SIZE := uint8(v4_range_uint8)
@@ -108,10 +108,9 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 				panic(err)
 			}
 
-			v6_base_high_uint64, err := strconv.ParseInt(v6_base_high_str, 0, 64)
-			V6_BASE_HIGH := uint64(v6_base_high_uint64) << 16
-			if err != nil {
-				panic(err)
+			v6Addr := net.ParseIP(v6_range_str).To16()
+			if v6Addr == nil {
+				panic("Invalid v6 base address: " + v6_range_str)
 			}
 
 			num := *info.ID
@@ -122,8 +121,7 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 			v4Addr[net.IPv4len-1] = 1
 			v4addr := net.IP(v4Addr[:]).String()
 
-			var v6Addr [net.IPv6len]byte
-			binary.BigEndian.PutUint64(v6Addr[:8], V6_BASE_HIGH|uint64(num))
+			binary.BigEndian.PutUint16(v6Addr[6:8], uint16(num))
 			v6range := fmt.Sprintf("%s/64", net.IP(v6Addr[:]))
 			v6Addr[net.IPv6len-1] = 1
 			v6addr := net.IP(v6Addr[:]).String()
