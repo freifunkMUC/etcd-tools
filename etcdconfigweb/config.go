@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -81,9 +82,37 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 
 		// insert new node
 		err := ch.etcdHandler.CreateNode(ctx, pubkey, func(info *ffbs.NodeInfo) {
-			const V4_BASE uint32 = 10 << 24
-			const V4_RANGE_SIZE uint8 = 10
-			const V6_BASE_HIGH uint64 = 0x20010bf70381 << 16
+			v4_base_str := os.Getenv("PARKER_V4_BASE")
+			v4_range_size_str := os.Getenv("PARKER_V4_RANGE_SIZE")
+			v6_base_high_str := os.Getenv("PARKER_V6_BASE_HIGH")
+
+			if v4_base_str == "" {
+				v4_base_str = "10"
+			}
+			if v4_range_size_str == "" {
+				v4_range_size_str = "10"
+			}
+			if v6_base_high_str == "" {
+				v6_base_high_str = "0x20010bf70381"
+			}
+
+			v4_base_uint32, err := strconv.ParseInt(v4_base_str, 0, 32)
+			V4_BASE := uint32(v4_base_uint32) << 24
+			if err != nil {
+				panic(err)
+			}
+
+			v4_range_uint8, err := strconv.ParseInt(v4_range_size_str, 0, 8)
+			V4_RANGE_SIZE := uint8(v4_range_uint8)
+			if err != nil {
+				panic(err)
+			}
+
+			v6_base_high_uint64, err := strconv.ParseInt(v6_base_high_str, 0, 64)
+			V6_BASE_HIGH := uint64(v6_base_high_uint64) << 16
+			if err != nil {
+				panic(err)
+			}
 
 			num := *info.ID
 
