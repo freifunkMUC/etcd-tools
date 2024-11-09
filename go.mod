@@ -1,4 +1,4 @@
-module gitli.stratum0.org/ffbs/etcd-tools
+module github.com/freifunkMUC/etcd-tools
 
 go 1.19
 
