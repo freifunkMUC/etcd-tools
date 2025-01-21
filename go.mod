@@ -3,7 +3,7 @@ module gitli.stratum0.org/ffbs/etcd-tools
 go 1.19
 
 require (
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	go.etcd.io/etcd/client/v3 v3.5.11
 	go.seankhliao.com/signify v0.0.0-20200507101447-944db0e32d56
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
