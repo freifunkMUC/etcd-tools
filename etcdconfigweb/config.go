@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,31 @@ type ConfigHandler struct {
 var MISSING_V6MTU = errors.New("Missing v6mtu query parameter")
 var MISSING_PUBKEY = errors.New("Missing pubkey query parameter")
 var MISSING_NONCE = errors.New("Missing nonce query parameter")
+
+func getNthSubnet(cidr string, nthSubnet uint64, subnetSize uint) (net.IP, error) {
+	_, ipCidr, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid CIDR notation: %s", cidr)
+	}
+
+	baseIP := ipCidr.IP
+	rangeSize, totalIPSize := ipCidr.Mask.Size()
+	if subnetSize <= uint(rangeSize) {
+		return nil, fmt.Errorf("subnet size %d too large for CIDR range %s", subnetSize, ipCidr.String())
+	}
+
+	subnetShiftSize := subnetSize - uint(rangeSize)
+	if nthSubnet >= (1 << subnetShiftSize) {
+		return nil, fmt.Errorf("cannot allocate %dx /%d subnets in the CIDR range %s", nthSubnet+1, subnetSize, ipCidr.String())
+	}
+
+	nthSubnetID := big.NewInt(int64(nthSubnet))
+	nthSubnetID.Lsh(nthSubnetID, uint(totalIPSize)-subnetSize)
+	nthSubnetAddr := new(big.Int).SetBytes(baseIP)
+	nthSubnetAddr.Add(nthSubnetAddr, nthSubnetID)
+
+	return net.IP(nthSubnetAddr.Bytes()), nil
+}
 
 func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, headers http.Header) (*ConfigResponse, error) {
 	var v6mtu uint64
@@ -81,28 +107,45 @@ func (ch ConfigHandler) handleRequest(ctx context.Context, query url.Values, hea
 
 		// insert new node
 		err := ch.etcdHandler.CreateNode(ctx, pubkey, func(info *ffbs.NodeInfo) {
-			const V4_BASE uint32 = 10 << 24
-			const V4_RANGE_SIZE uint8 = 10
-			const V6_BASE_HIGH uint64 = 0x20010bf70381 << 16
+			const CLIENT_V4_RANGE_SIZE uint = 22
+			const CLIENT_V6_RANGE_SIZE uint = 64
+
+			// IPv4 handling
+			v4RangeStr := os.Getenv("PARKER_V4_RANGE")
+			if v4RangeStr == "" {
+				v4RangeStr = "10.0.0.0/8" // default IPv4 range for backwards compatibility
+			}
+
+			// IPv6 handling
+			v6RangeStr := os.Getenv("PARKER_V6_RANGE")
+			if v6RangeStr == "" {
+				v6RangeStr = "2001:bf7:381::/48" // default IPv6 range for backwards compatibility
+			}
 
 			num := *info.ID
 
-			var v4Addr [net.IPv4len]byte
-			binary.BigEndian.PutUint32(v4Addr[:], V4_BASE|(uint32(num)<<V4_RANGE_SIZE))
-			v4range := fmt.Sprintf("%s/%d", net.IP(v4Addr[:]), 8*net.IPv4len-V4_RANGE_SIZE)
-			v4Addr[net.IPv4len-1] = 1
-			v4addr := net.IP(v4Addr[:]).String()
+			v4ClientSubnet, err := getNthSubnet(v4RangeStr, num, CLIENT_V4_RANGE_SIZE)
+			if err != nil {
+				panic(err)
+			}
+			v4ClientRangeStr := fmt.Sprintf("%s/%d", v4ClientSubnet, CLIENT_V4_RANGE_SIZE)
+			v4BigAddr := new(big.Int).SetBytes(v4ClientSubnet)
+			v4BigAddr.Add(v4BigAddr, big.NewInt(1)) // use the next free IPv4
+			v4ClientAddrStr := net.IP(v4BigAddr.Bytes()).String()
 
-			var v6Addr [net.IPv6len]byte
-			binary.BigEndian.PutUint64(v6Addr[:8], V6_BASE_HIGH|uint64(num))
-			v6range := fmt.Sprintf("%s/64", net.IP(v6Addr[:]))
-			v6Addr[net.IPv6len-1] = 1
-			v6addr := net.IP(v6Addr[:]).String()
+			v6ClientSubnet, err := getNthSubnet(v6RangeStr, num, CLIENT_V6_RANGE_SIZE)
+			if err != nil {
+				panic(err)
+			}
+			v6ClientRangeStr := fmt.Sprintf("%s/%d", v6ClientSubnet, CLIENT_V6_RANGE_SIZE)
+			v6BigAddr := new(big.Int).SetBytes(v6ClientSubnet)
+			v6BigAddr.Add(v6BigAddr, big.NewInt(1)) // use the next free IPv6
+			v6ClientAddrStr := net.IP(v6BigAddr.Bytes()).String()
 
-			info.Address4 = &v4addr
-			info.Range4 = &v4range
-			info.Address6 = &v6addr
-			info.Range6 = &v6range
+			info.Address4 = &v4ClientAddrStr
+			info.Range4 = &v4ClientRangeStr
+			info.Address6 = &v6ClientAddrStr
+			info.Range6 = &v6ClientRangeStr
 		})
 		if err != nil {
 			return nil, err
