@@ -4,9 +4,12 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
+
 updates:
   - package-ecosystem: gomod
     directory: /
     schedule: {interval: monthly}
-    reviewers: [freifunkMUC/firmware]
-    assignees: [freifunkMUC/firmware]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: monthly}
